@@ -1,5 +1,6 @@
 import { type Grid, TileType, type Tile } from './Grid';
 import { type Economy } from './Economy';
+import { type RoadSystem } from './RoadSystem';
 
 export const Tool = {
   Inspect: 'Inspect',
@@ -18,14 +19,16 @@ export const TOOL_COSTS: Record<Tool, number> = {
 export class ToolManager {
   public readonly grid: Grid;
   public readonly economy: Economy;
+  public roadSystem?: RoadSystem;
   public currentTool: Tool = Tool.Inspect;
   public lastInspectedTile: Tile | null = null;
   private toolListeners: Set<(tool: Tool) => void> = new Set();
   private tileChangeListeners: Set<(tile: Tile) => void> = new Set();
 
-  constructor(grid: Grid, economy: Economy) {
+  constructor(grid: Grid, economy: Economy, roadSystem?: RoadSystem) {
     this.grid = grid;
     this.economy = economy;
+    this.roadSystem = roadSystem;
   }
 
   public setTool(tool: Tool): void {
@@ -76,6 +79,7 @@ export class ToolManager {
         }
 
         this.grid.setTileType(tileX, tileY, TileType.Road);
+        this.roadSystem?.updateTileAndNeighbors(tileX, tileY);
         this.notifyTileChanged(tile);
         return true;
       }
@@ -101,6 +105,7 @@ export class ToolManager {
         }
 
         this.grid.setTileType(tileX, tileY, TileType.Grass);
+        this.roadSystem?.updateTileAndNeighbors(tileX, tileY);
         this.notifyTileChanged(tile);
         return true;
       }

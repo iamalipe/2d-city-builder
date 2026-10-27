@@ -7,6 +7,7 @@ import {
   zoomAtScreenPoint,
 } from '../core/Coordinates';
 import { type ToolManager } from '../core/ToolManager';
+import { type RoadSystem } from '../core/RoadSystem';
 import { GridRenderer } from './GridRenderer';
 
 export interface ViewportOptions {
@@ -15,6 +16,7 @@ export interface ViewportOptions {
   maxZoom?: number;
   panSpeed?: number;
   toolManager?: ToolManager;
+  roadSystem?: RoadSystem;
 }
 
 export class Viewport {
@@ -25,6 +27,7 @@ export class Viewport {
   public camera: CameraState;
   public tileSize: number;
   public toolManager?: ToolManager;
+  public roadSystem?: RoadSystem;
 
   public minZoom: number;
   public maxZoom: number;
@@ -53,6 +56,7 @@ export class Viewport {
   constructor(grid: Grid, options: ViewportOptions = {}) {
     this.grid = grid;
     this.toolManager = options.toolManager;
+    this.roadSystem = options.roadSystem ?? options.toolManager?.roadSystem;
     this.tileSize = options.tileSize ?? DEFAULT_TILE_SIZE;
     this.minZoom = options.minZoom ?? 0.25;
     this.maxZoom = options.maxZoom ?? 3.5;
@@ -81,8 +85,11 @@ export class Viewport {
 
   public setToolManager(toolManager: ToolManager): void {
     this.toolManager = toolManager;
+    if (toolManager.roadSystem) {
+      this.roadSystem = toolManager.roadSystem;
+    }
     toolManager.subscribeTileChange(() => {
-      this.gridRenderer.render(this.grid);
+      this.gridRenderer.render(this.grid, this.roadSystem);
     });
   }
 
@@ -103,12 +110,12 @@ export class Viewport {
 
     if (this.toolManager) {
       this.toolManager.subscribeTileChange(() => {
-        this.gridRenderer.render(this.grid);
+        this.gridRenderer.render(this.grid, this.roadSystem);
       });
     }
 
     // Initial render of the grid
-    this.gridRenderer.render(this.grid);
+    this.gridRenderer.render(this.grid, this.roadSystem);
 
     // Center map in the viewport
     this.centerView();
@@ -212,29 +219,18 @@ export class Viewport {
     const screenY = e.clientY - rect.top;
 
     if (this.isRightDragging) {
-      const deltaX = e.clientX - this.dragStartPointer.x;
-      const deltaY = e.clientY - this.dragStartPointer.y;
-      this.camera.panX = this.dragStartPan.x + deltaX;
-      this.camera.panY = this.dragStartPan.y + deltaY;
+      this.camera.panX = this.dragStartPan.x + (e.clientX - this.dragStartPointer.x);
+      this.camera.panY = this.dragStartPan.y + (e.clientY - this.dragStartPointer.y);
       this.updateTransform();
     }
-
     if (this.isLeftDown) {
       this.applyToolAtScreen(e.clientX, e.clientY);
     }
 
-    if (
-      screenX >= 0 &&
-      screenX <= rect.width &&
-      screenY >= 0 &&
-      screenY <= rect.height
-    ) {
-      this.lastPointerPos = { x: screenX, y: screenY };
-      this.refreshHover();
-    } else {
-      this.lastPointerPos = null;
-      this.gridRenderer.updateHover(null, null);
-    }
+    const inBounds = screenX >= 0 && screenX <= rect.width && screenY >= 0 && screenY <= rect.height;
+    this.lastPointerPos = inBounds ? { x: screenX, y: screenY } : null;
+    if (inBounds) this.refreshHover();
+    else this.gridRenderer.updateHover(null, null);
   }
 
   private handlePointerUp(e: PointerEvent): void {
@@ -261,7 +257,7 @@ export class Viewport {
       this.lastAppliedTile = { x: gridPos.x, y: gridPos.y };
       const applied = this.toolManager.applyTool(gridPos.x, gridPos.y);
       if (applied) {
-        this.gridRenderer.render(this.grid);
+        this.gridRenderer.render(this.grid, this.roadSystem);
       }
     }
   }

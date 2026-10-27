@@ -18,6 +18,7 @@ export default function App() {
 
     Viewport.create(containerRef.current, engine.grid, {
       toolManager: engine.toolManager,
+      roadSystem: engine.roadSystem,
     }).then((viewport) => {
       if (!isMounted) {
         viewport.destroy();

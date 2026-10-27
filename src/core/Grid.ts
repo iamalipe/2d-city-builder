@@ -10,6 +10,7 @@ export interface Tile {
   x: number;
   y: number;
   type: TileType;
+  roadMask?: number;
 }
 
 export class Grid {
