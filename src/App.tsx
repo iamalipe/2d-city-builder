@@ -27,8 +27,27 @@ export default function App() {
       viewportRef.current = viewport;
     });
 
+    // Simulation loop
+    let lastTime = performance.now();
+    let frameId: number;
+
+    const loop = (currentTime: number) => {
+      const deltaMs = currentTime - lastTime;
+      lastTime = currentTime;
+
+      const ticks = engine.clock.step(deltaMs);
+      for (let i = 0; i < ticks; i++) {
+        engine.tick();
+      }
+
+      frameId = requestAnimationFrame(loop);
+    };
+
+    frameId = requestAnimationFrame(loop);
+
     return () => {
       isMounted = false;
+      cancelAnimationFrame(frameId);
       if (viewportRef.current) {
         viewportRef.current.destroy();
         viewportRef.current = null;
@@ -39,7 +58,11 @@ export default function App() {
   return (
     <div className="game-container">
       <div ref={containerRef} className="canvas-container" />
-      <TopBar economy={engine.economy} />
+      <TopBar
+        economy={engine.economy}
+        clock={engine.clock}
+        demandSystem={engine.demandSystem}
+      />
       <div className="controls-hint">
         WASD / Right-Drag to pan • Scroll to zoom • Drag box to paint zones • Click/Drag for roads
       </div>

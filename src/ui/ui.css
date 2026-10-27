@@ -35,6 +35,139 @@
   color: #f1f5f9;
 }
 
+/* Center elements: Speed Controls & RCI Demand */
+.top-bar-center {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.speed-controls-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.date-display {
+  font-size: 13px;
+  font-weight: 700;
+  color: #94a3b8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  min-width: 72px;
+}
+
+.speed-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.speed-btn {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  transition: all 0.15s ease;
+}
+
+.speed-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #f8fafc;
+}
+
+.speed-btn.active {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.5);
+}
+
+/* RCI Demand Meter */
+.rci-meter {
+  display: flex;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 4px 10px;
+  border-radius: 8px;
+  align-items: center;
+}
+
+.rci-bar-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.rci-bar-track {
+  position: relative;
+  width: 10px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.rci-zero-line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.35);
+  z-index: 2;
+}
+
+.rci-bar-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 1px;
+  transition: all 0.25s ease-out;
+}
+
+.rci-bar-fill.residential {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.7);
+}
+
+.rci-bar-fill.commercial {
+  background: #3b82f6;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.7);
+}
+
+.rci-bar-fill.industrial {
+  background: #eab308;
+  box-shadow: 0 0 6px rgba(234, 179, 8, 0.7);
+}
+
+.rci-label {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.rci-label.residential {
+  color: #4ade80;
+}
+
+.rci-label.commercial {
+  color: #60a5fa;
+}
+
+.rci-label.industrial {
+  color: #facc15;
+}
+
 .funds-display {
   display: flex;
   align-items: center;
