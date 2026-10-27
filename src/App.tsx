@@ -1,19 +1,24 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Viewport } from './render/Viewport';
-import { Grid } from './core/Grid';
+import { SimulationEngine } from './core/Engine';
+import { TopBar } from './ui/TopBar';
+import { BottomToolbar } from './ui/BottomToolbar';
 import './App.css';
+import './ui/ui.css';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport | null>(null);
+  const [engine] = useState(() => new SimulationEngine());
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const grid = new Grid(64, 64);
     let isMounted = true;
 
-    Viewport.create(containerRef.current, grid).then((viewport) => {
+    Viewport.create(containerRef.current, engine.grid, {
+      toolManager: engine.toolManager,
+    }).then((viewport) => {
       if (!isMounted) {
         viewport.destroy();
         return;
@@ -28,23 +33,16 @@ export default function App() {
         viewportRef.current = null;
       }
     };
-  }, []);
+  }, [engine]);
 
   return (
     <div className="game-container">
       <div ref={containerRef} className="canvas-container" />
-      <div className="ui-overlay">
-        <div className="hud-panel">
-          <h1 className="hud-title">2D City Builder</h1>
-          <p className="hud-controls">
-            <span className="hud-badge">WASD</span> or <span className="hud-badge">Right-Drag</span> to pan
-            <br />
-            <span className="hud-badge">Mouse Wheel</span> to zoom
-            <br />
-            <span className="hud-badge">Hover</span> to highlight tile
-          </p>
-        </div>
+      <TopBar economy={engine.economy} />
+      <div className="controls-hint">
+        WASD / Right-Drag to pan • Scroll to zoom • Left-Click / Drag to use tool
       </div>
+      <BottomToolbar toolManager={engine.toolManager} />
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { Application, Container } from 'pixi.js';
-import { Grid } from '../core/Grid';
+import { type Grid } from '../core/Grid';
 import {
   type CameraState,
   DEFAULT_TILE_SIZE,
   screenToGrid,
   zoomAtScreenPoint,
 } from '../core/Coordinates';
+import { type ToolManager } from '../core/ToolManager';
 import { GridRenderer } from './GridRenderer';
 
 export interface ViewportOptions {
@@ -13,6 +14,7 @@ export interface ViewportOptions {
   minZoom?: number;
   maxZoom?: number;
   panSpeed?: number;
+  toolManager?: ToolManager;
 }
 
 export class Viewport {
@@ -22,6 +24,7 @@ export class Viewport {
   public grid: Grid;
   public camera: CameraState;
   public tileSize: number;
+  public toolManager?: ToolManager;
 
   public minZoom: number;
   public maxZoom: number;
@@ -30,6 +33,8 @@ export class Viewport {
   private isRightDragging: boolean = false;
   private dragStartPointer = { x: 0, y: 0 };
   private dragStartPan = { x: 0, y: 0 };
+  private isLeftDown: boolean = false;
+  private lastAppliedTile: { x: number; y: number } | null = null;
   private activeKeys: Set<string> = new Set();
   private lastPointerPos: { x: number; y: number } | null = null;
   private containerElement: HTMLElement | null = null;
@@ -45,8 +50,9 @@ export class Viewport {
   private handlePointerLeaveBound = this.handlePointerLeave.bind(this);
   private tickerUpdateBound = this.update.bind(this);
 
-  constructor(grid: Grid = new Grid(), options: ViewportOptions = {}) {
+  constructor(grid: Grid, options: ViewportOptions = {}) {
     this.grid = grid;
+    this.toolManager = options.toolManager;
     this.tileSize = options.tileSize ?? DEFAULT_TILE_SIZE;
     this.minZoom = options.minZoom ?? 0.25;
     this.maxZoom = options.maxZoom ?? 3.5;
@@ -65,12 +71,19 @@ export class Viewport {
 
   public static async create(
     containerElement: HTMLElement,
-    grid: Grid = new Grid(),
+    grid: Grid,
     options: ViewportOptions = {}
   ): Promise<Viewport> {
     const viewport = new Viewport(grid, options);
     await viewport.init(containerElement);
     return viewport;
+  }
+
+  public setToolManager(toolManager: ToolManager): void {
+    this.toolManager = toolManager;
+    toolManager.subscribeTileChange(() => {
+      this.gridRenderer.render(this.grid);
+    });
   }
 
   public async init(containerElement: HTMLElement): Promise<void> {
@@ -87,6 +100,12 @@ export class Viewport {
 
     containerElement.appendChild(this.app.canvas);
     this.app.stage.addChild(this.worldContainer);
+
+    if (this.toolManager) {
+      this.toolManager.subscribeTileChange(() => {
+        this.gridRenderer.render(this.grid);
+      });
+    }
 
     // Initial render of the grid
     this.gridRenderer.render(this.grid);
@@ -173,8 +192,11 @@ export class Viewport {
   }
 
   private handlePointerDown(e: PointerEvent): void {
-    // Right click is button 2
-    if (e.button === 2) {
+    if (e.button === 0) {
+      this.isLeftDown = true;
+      this.lastAppliedTile = null;
+      this.applyToolAtScreen(e.clientX, e.clientY);
+    } else if (e.button === 2) {
       this.isRightDragging = true;
       this.dragStartPointer = { x: e.clientX, y: e.clientY };
       this.dragStartPan = { x: this.camera.panX, y: this.camera.panY };
@@ -197,7 +219,10 @@ export class Viewport {
       this.updateTransform();
     }
 
-    // Only update hover if mouse is inside canvas
+    if (this.isLeftDown) {
+      this.applyToolAtScreen(e.clientX, e.clientY);
+    }
+
     if (
       screenX >= 0 &&
       screenX <= rect.width &&
@@ -213,8 +238,31 @@ export class Viewport {
   }
 
   private handlePointerUp(e: PointerEvent): void {
-    if (e.button === 2) {
+    if (e.button === 0) {
+      this.isLeftDown = false;
+      this.lastAppliedTile = null;
+    } else if (e.button === 2) {
       this.isRightDragging = false;
+    }
+  }
+
+  private applyToolAtScreen(clientX: number, clientY: number): void {
+    if (!this.toolManager || !this.app?.canvas) return;
+
+    const rect = this.app.canvas.getBoundingClientRect();
+    const screenX = clientX - rect.left;
+    const screenY = clientY - rect.top;
+    const gridPos = screenToGrid(screenX, screenY, this.camera, this.tileSize);
+
+    if (
+      this.grid.isValid(gridPos.x, gridPos.y) &&
+      (gridPos.x !== this.lastAppliedTile?.x || gridPos.y !== this.lastAppliedTile?.y)
+    ) {
+      this.lastAppliedTile = { x: gridPos.x, y: gridPos.y };
+      const applied = this.toolManager.applyTool(gridPos.x, gridPos.y);
+      if (applied) {
+        this.gridRenderer.render(this.grid);
+      }
     }
   }
 
