@@ -1,5 +1,12 @@
+import { Grid } from './Grid';
+
 export class SimulationEngine {
   public ticks: number = 0;
+  public grid: Grid;
+
+  constructor(grid?: Grid) {
+    this.grid = grid ?? new Grid();
+  }
 
   get tickCount(): number {
     return this.ticks;
