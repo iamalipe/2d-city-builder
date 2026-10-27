@@ -1,3 +1,5 @@
+import type { ZoneType } from './ZoneSystem';
+
 export const TileType = {
   Grass: 'Grass',
   Water: 'Water',
@@ -11,6 +13,7 @@ export interface Tile {
   y: number;
   type: TileType;
   roadMask?: number;
+  zone?: ZoneType;
 }
 
 export class Grid {

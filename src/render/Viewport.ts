@@ -4,17 +4,15 @@ import {
   type CameraState,
   DEFAULT_TILE_SIZE,
   screenToGrid,
-  zoomAtScreenPoint,
 } from '../core/Coordinates';
-import { type ToolManager } from '../core/ToolManager';
+import { TOOL_TO_ZONE, type ToolManager } from '../core/ToolManager';
+import { ZoneType } from '../core/ZoneSystem';
 import { type RoadSystem } from '../core/RoadSystem';
 import { GridRenderer } from './GridRenderer';
+import { CameraController, type CameraOptions } from './CameraController';
 
-export interface ViewportOptions {
+export interface ViewportOptions extends CameraOptions {
   tileSize?: number;
-  minZoom?: number;
-  maxZoom?: number;
-  panSpeed?: number;
   toolManager?: ToolManager;
   roadSystem?: RoadSystem;
 }
@@ -24,49 +22,32 @@ export class Viewport {
   public worldContainer: Container;
   public gridRenderer: GridRenderer;
   public grid: Grid;
-  public camera: CameraState;
   public tileSize: number;
   public toolManager?: ToolManager;
   public roadSystem?: RoadSystem;
+  public cameraController: CameraController;
 
-  public minZoom: number;
-  public maxZoom: number;
-  public panSpeed: number;
-
-  private isRightDragging: boolean = false;
-  private dragStartPointer = { x: 0, y: 0 };
-  private dragStartPan = { x: 0, y: 0 };
   private isLeftDown: boolean = false;
+  private isBoxSelecting: boolean = false;
+  private boxStart = { x: 0, y: 0 };
+  private boxCurrent = { x: 0, y: 0 };
   private lastAppliedTile: { x: number; y: number } | null = null;
-  private activeKeys: Set<string> = new Set();
   private lastPointerPos: { x: number; y: number } | null = null;
   private containerElement: HTMLElement | null = null;
 
-  // Bound event handlers for clean removal
-  private handleKeyDownBound = this.handleKeyDown.bind(this);
-  private handleKeyUpBound = this.handleKeyUp.bind(this);
-  private handlePointerDownBound = this.handlePointerDown.bind(this);
-  private handlePointerMoveBound = this.handlePointerMove.bind(this);
-  private handlePointerUpBound = this.handlePointerUp.bind(this);
-  private handleWheelBound = this.handleWheel.bind(this);
-  private handleContextMenuBound = this.handleContextMenu.bind(this);
-  private handlePointerLeaveBound = this.handlePointerLeave.bind(this);
-  private tickerUpdateBound = this.update.bind(this);
+  get camera(): CameraState {
+    return this.cameraController.camera;
+  }
+  set camera(c: CameraState) {
+    this.cameraController.camera = c;
+  }
 
   constructor(grid: Grid, options: ViewportOptions = {}) {
     this.grid = grid;
     this.toolManager = options.toolManager;
     this.roadSystem = options.roadSystem ?? options.toolManager?.roadSystem;
     this.tileSize = options.tileSize ?? DEFAULT_TILE_SIZE;
-    this.minZoom = options.minZoom ?? 0.25;
-    this.maxZoom = options.maxZoom ?? 3.5;
-    this.panSpeed = options.panSpeed ?? 600;
-
-    this.camera = {
-      panX: 0,
-      panY: 0,
-      zoom: 1.0,
-    };
+    this.cameraController = new CameraController(options);
 
     this.worldContainer = new Container();
     this.gridRenderer = new GridRenderer(this.tileSize);
@@ -114,103 +95,94 @@ export class Viewport {
       });
     }
 
-    // Initial render of the grid
     this.gridRenderer.render(this.grid, this.roadSystem);
-
-    // Center map in the viewport
     this.centerView();
-
-    // Attach interaction listeners
     this.attachEventListeners();
-
-    // Start ticker
-    this.app.ticker.add(this.tickerUpdateBound);
+    this.app.ticker.add(this.handleTicker);
   }
 
   public centerView(): void {
-    if (!this.app || !this.app.screen) return;
-    const worldWidth = this.grid.width * this.tileSize;
-    const worldHeight = this.grid.height * this.tileSize;
-
-    this.camera.panX = (this.app.screen.width - worldWidth * this.camera.zoom) / 2;
-    this.camera.panY = (this.app.screen.height - worldHeight * this.camera.zoom) / 2;
+    if (!this.app?.screen) return;
+    this.cameraController.centerOn(
+      this.app.screen.width,
+      this.app.screen.height,
+      this.grid.width * this.tileSize,
+      this.grid.height * this.tileSize
+    );
     this.updateTransform();
   }
 
   public updateTransform(): void {
-    this.worldContainer.position.set(this.camera.panX, this.camera.panY);
-    this.worldContainer.scale.set(this.camera.zoom);
+    this.cameraController.applyTo(this.worldContainer);
   }
 
-  private update(ticker: { deltaTime: number }): void {
-    let dx = 0;
-    let dy = 0;
-
-    if (this.activeKeys.has('KeyW') || this.activeKeys.has('ArrowUp')) dy += 1;
-    if (this.activeKeys.has('KeyS') || this.activeKeys.has('ArrowDown')) dy -= 1;
-    if (this.activeKeys.has('KeyA') || this.activeKeys.has('ArrowLeft')) dx += 1;
-    if (this.activeKeys.has('KeyD') || this.activeKeys.has('ArrowRight')) dx -= 1;
-
-    if (dx !== 0 || dy !== 0) {
-      const step = this.panSpeed * (ticker.deltaTime / 60);
-      this.camera.panX += dx * step;
-      this.camera.panY += dy * step;
+  private handleTicker = (ticker: { deltaTime: number }): void => {
+    if (this.cameraController.update(ticker.deltaTime)) {
       this.updateTransform();
       this.refreshHover();
     }
-  }
+  };
 
   private attachEventListeners(): void {
-    window.addEventListener('keydown', this.handleKeyDownBound);
-    window.addEventListener('keyup', this.handleKeyUpBound);
+    window.addEventListener('keydown', this.handleKeyDown);
+    window.addEventListener('keyup', this.handleKeyUp);
+    window.addEventListener('pointermove', this.handlePointerMove);
+    window.addEventListener('pointerup', this.handlePointerUp);
 
     const canvas = this.app.canvas;
-    canvas.addEventListener('pointerdown', this.handlePointerDownBound);
-    window.addEventListener('pointermove', this.handlePointerMoveBound);
-    window.addEventListener('pointerup', this.handlePointerUpBound);
-    canvas.addEventListener('wheel', this.handleWheelBound, { passive: false });
-    canvas.addEventListener('contextmenu', this.handleContextMenuBound);
-    canvas.addEventListener('pointerleave', this.handlePointerLeaveBound);
+    canvas.addEventListener('pointerdown', this.handlePointerDown);
+    canvas.addEventListener('wheel', this.handleWheel, { passive: false });
+    canvas.addEventListener('contextmenu', this.handleContextMenu);
+    canvas.addEventListener('pointerleave', this.handlePointerLeave);
   }
 
   private detachEventListeners(): void {
-    window.removeEventListener('keydown', this.handleKeyDownBound);
-    window.removeEventListener('keyup', this.handleKeyUpBound);
+    window.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('keyup', this.handleKeyUp);
+    window.removeEventListener('pointermove', this.handlePointerMove);
+    window.removeEventListener('pointerup', this.handlePointerUp);
 
-    if (this.app && this.app.canvas) {
+    if (this.app?.canvas) {
       const canvas = this.app.canvas;
-      canvas.removeEventListener('pointerdown', this.handlePointerDownBound);
-      canvas.removeEventListener('wheel', this.handleWheelBound);
-      canvas.removeEventListener('contextmenu', this.handleContextMenuBound);
-      canvas.removeEventListener('pointerleave', this.handlePointerLeaveBound);
-    }
-    window.removeEventListener('pointermove', this.handlePointerMoveBound);
-    window.removeEventListener('pointerup', this.handlePointerUpBound);
-  }
-
-  private handleKeyDown(e: KeyboardEvent): void {
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(e.code)) {
-      this.activeKeys.add(e.code);
+      canvas.removeEventListener('pointerdown', this.handlePointerDown);
+      canvas.removeEventListener('wheel', this.handleWheel);
+      canvas.removeEventListener('contextmenu', this.handleContextMenu);
+      canvas.removeEventListener('pointerleave', this.handlePointerLeave);
     }
   }
 
-  private handleKeyUp(e: KeyboardEvent): void {
-    this.activeKeys.delete(e.code);
-  }
+  private handleKeyDown = (e: KeyboardEvent): void => {
+    this.cameraController.onKeyDown(e.code);
+  };
 
-  private handlePointerDown(e: PointerEvent): void {
+  private handleKeyUp = (e: KeyboardEvent): void => {
+    this.cameraController.onKeyUp(e.code);
+  };
+
+  private handlePointerDown = (e: PointerEvent): void => {
     if (e.button === 0) {
       this.isLeftDown = true;
-      this.lastAppliedTile = null;
-      this.applyToolAtScreen(e.clientX, e.clientY);
-    } else if (e.button === 2) {
-      this.isRightDragging = true;
-      this.dragStartPointer = { x: e.clientX, y: e.clientY };
-      this.dragStartPan = { x: this.camera.panX, y: this.camera.panY };
-    }
-  }
+      const rect = this.app?.canvas?.getBoundingClientRect();
+      const sx = e.clientX - (rect?.left ?? 0);
+      const sy = e.clientY - (rect?.top ?? 0);
+      const gridPos = screenToGrid(sx, sy, this.camera, this.tileSize);
 
-  private handlePointerMove(e: PointerEvent): void {
+      const zone = this.toolManager ? TOOL_TO_ZONE[this.toolManager.currentTool] : undefined;
+      if (zone) {
+        this.isBoxSelecting = true;
+        this.boxStart = gridPos;
+        this.boxCurrent = gridPos;
+        this.gridRenderer.zoneRenderer.setSelectionBox(gridPos.x, gridPos.y, gridPos.x, gridPos.y, zone);
+      } else {
+        this.lastAppliedTile = null;
+        this.applyToolAtScreen(e.clientX, e.clientY);
+      }
+    } else if (e.button === 2) {
+      this.cameraController.startDrag(e.clientX, e.clientY);
+    }
+  };
+
+  private handlePointerMove = (e: PointerEvent): void => {
     const canvas = this.app?.canvas;
     if (!canvas) return;
 
@@ -218,12 +190,22 @@ export class Viewport {
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
 
-    if (this.isRightDragging) {
-      this.camera.panX = this.dragStartPan.x + (e.clientX - this.dragStartPointer.x);
-      this.camera.panY = this.dragStartPan.y + (e.clientY - this.dragStartPointer.y);
+    if (this.cameraController.drag(e.clientX, e.clientY)) {
       this.updateTransform();
     }
-    if (this.isLeftDown) {
+
+    if (this.isBoxSelecting && this.toolManager) {
+      const zone = TOOL_TO_ZONE[this.toolManager.currentTool] ?? ZoneType.Residential;
+      const gridPos = screenToGrid(screenX, screenY, this.camera, this.tileSize);
+      this.boxCurrent = gridPos;
+      this.gridRenderer.zoneRenderer.setSelectionBox(
+        this.boxStart.x,
+        this.boxStart.y,
+        gridPos.x,
+        gridPos.y,
+        zone
+      );
+    } else if (this.isLeftDown) {
       this.applyToolAtScreen(e.clientX, e.clientY);
     }
 
@@ -231,16 +213,31 @@ export class Viewport {
     this.lastPointerPos = inBounds ? { x: screenX, y: screenY } : null;
     if (inBounds) this.refreshHover();
     else this.gridRenderer.updateHover(null, null);
-  }
+  };
 
-  private handlePointerUp(e: PointerEvent): void {
+  private handlePointerUp = (e: PointerEvent): void => {
     if (e.button === 0) {
+      if (this.isBoxSelecting && this.toolManager) {
+        this.isBoxSelecting = false;
+        this.gridRenderer.zoneRenderer.clearSelectionBox();
+        const zone = TOOL_TO_ZONE[this.toolManager.currentTool];
+        if (zone) {
+          this.toolManager.applyZoneRect(
+            this.boxStart.x,
+            this.boxStart.y,
+            this.boxCurrent.x,
+            this.boxCurrent.y,
+            zone
+          );
+          this.gridRenderer.render(this.grid, this.roadSystem);
+        }
+      }
       this.isLeftDown = false;
       this.lastAppliedTile = null;
     } else if (e.button === 2) {
-      this.isRightDragging = false;
+      this.cameraController.endDrag();
     }
-  }
+  };
 
   private applyToolAtScreen(clientX: number, clientY: number): void {
     if (!this.toolManager || !this.app?.canvas) return;
@@ -262,42 +259,25 @@ export class Viewport {
     }
   }
 
-  private handleWheel(e: WheelEvent): void {
+  private handleWheel = (e: WheelEvent): void => {
     e.preventDefault();
     if (!this.app?.canvas) return;
 
     const rect = this.app.canvas.getBoundingClientRect();
-    const cursorX = e.clientX - rect.left;
-    const cursorY = e.clientY - rect.top;
+    if (this.cameraController.zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY)) {
+      this.updateTransform();
+      this.refreshHover();
+    }
+  };
 
-    const zoomMultiplier = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-    const targetZoom = Math.min(
-      this.maxZoom,
-      Math.max(this.minZoom, this.camera.zoom * zoomMultiplier)
-    );
-
-    const newCamera = zoomAtScreenPoint(
-      cursorX,
-      cursorY,
-      this.camera.zoom,
-      targetZoom,
-      this.camera.panX,
-      this.camera.panY
-    );
-
-    this.camera = newCamera;
-    this.updateTransform();
-    this.refreshHover();
-  }
-
-  private handleContextMenu(e: MouseEvent): void {
+  private handleContextMenu = (e: MouseEvent): void => {
     e.preventDefault();
-  }
+  };
 
-  private handlePointerLeave(): void {
+  private handlePointerLeave = (): void => {
     this.lastPointerPos = null;
     this.gridRenderer.updateHover(null, null);
-  }
+  };
 
   private refreshHover(): void {
     if (!this.lastPointerPos) {
@@ -322,7 +302,7 @@ export class Viewport {
   public destroy(): void {
     this.detachEventListeners();
     if (this.app) {
-      this.app.ticker.remove(this.tickerUpdateBound);
+      this.app.ticker.remove(this.handleTicker);
       this.gridRenderer.destroy();
       this.app.destroy(true, { children: true });
     }

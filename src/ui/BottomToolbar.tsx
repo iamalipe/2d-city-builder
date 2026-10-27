@@ -18,7 +18,13 @@ export function BottomToolbar({ toolManager }: BottomToolbarProps) {
         toolManager.setTool(Tool.Inspect);
       } else if (e.key === '2' || e.key === 'r' || e.key === 'R') {
         toolManager.setTool(Tool.Road);
-      } else if (e.key === '3' || e.key === 'b' || e.key === 'B') {
+      } else if (e.key === '3' || e.key === 'z' || e.key === 'Z') {
+        toolManager.setTool(Tool.Residential);
+      } else if (e.key === '4' || e.key === 'c' || e.key === 'C') {
+        toolManager.setTool(Tool.Commercial);
+      } else if (e.key === '5' || e.key === 'x' || e.key === 'X') {
+        toolManager.setTool(Tool.Industrial);
+      } else if (e.key === '6' || e.key === 'b' || e.key === 'B') {
         toolManager.setTool(Tool.Bulldoze);
       }
     };
@@ -54,9 +60,39 @@ export function BottomToolbar({ toolManager }: BottomToolbarProps) {
 
       <button
         type="button"
+        className={`tool-button tool-residential ${activeTool === Tool.Residential ? 'active' : ''}`}
+        onClick={() => toolManager.setTool(Tool.Residential)}
+        title="Residential Zone ($100) [3]"
+      >
+        <span className="tool-icon">🟢</span>
+        <span className="tool-label">Residential ($100)</span>
+      </button>
+
+      <button
+        type="button"
+        className={`tool-button tool-commercial ${activeTool === Tool.Commercial ? 'active' : ''}`}
+        onClick={() => toolManager.setTool(Tool.Commercial)}
+        title="Commercial Zone ($100) [4]"
+      >
+        <span className="tool-icon">🔵</span>
+        <span className="tool-label">Commercial ($100)</span>
+      </button>
+
+      <button
+        type="button"
+        className={`tool-button tool-industrial ${activeTool === Tool.Industrial ? 'active' : ''}`}
+        onClick={() => toolManager.setTool(Tool.Industrial)}
+        title="Industrial Zone ($100) [5]"
+      >
+        <span className="tool-icon">🟡</span>
+        <span className="tool-label">Industrial ($100)</span>
+      </button>
+
+      <button
+        type="button"
         className={`tool-button ${activeTool === Tool.Bulldoze ? 'active' : ''}`}
         onClick={() => toolManager.setTool(Tool.Bulldoze)}
-        title="Bulldoze ($5) [3]"
+        title="Bulldoze ($5) [6]"
       >
         <span className="tool-icon">🚜</span>
         <span className="tool-label">Bulldoze ($5)</span>

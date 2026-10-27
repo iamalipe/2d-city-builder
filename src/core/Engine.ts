@@ -1,6 +1,7 @@
 import { Grid } from './Grid';
 import { Economy } from './Economy';
 import { RoadSystem } from './RoadSystem';
+import { ZoneSystem } from './ZoneSystem';
 import { ToolManager } from './ToolManager';
 
 export class SimulationEngine {
@@ -8,13 +9,25 @@ export class SimulationEngine {
   public grid: Grid;
   public economy: Economy;
   public roadSystem: RoadSystem;
+  public zoneSystem: ZoneSystem;
   public toolManager: ToolManager;
 
-  constructor(grid?: Grid, economy?: Economy, roadSystem?: RoadSystem) {
+  constructor(
+    grid?: Grid,
+    economy?: Economy,
+    roadSystem?: RoadSystem,
+    zoneSystem?: ZoneSystem
+  ) {
     this.grid = grid ?? new Grid();
     this.economy = economy ?? new Economy();
     this.roadSystem = roadSystem ?? new RoadSystem(this.grid);
-    this.toolManager = new ToolManager(this.grid, this.economy, this.roadSystem);
+    this.zoneSystem = zoneSystem ?? new ZoneSystem(this.grid);
+    this.toolManager = new ToolManager(
+      this.grid,
+      this.economy,
+      this.roadSystem,
+      this.zoneSystem
+    );
   }
 
   get tickCount(): number {

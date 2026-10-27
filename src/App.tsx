@@ -41,7 +41,7 @@ export default function App() {
       <div ref={containerRef} className="canvas-container" />
       <TopBar economy={engine.economy} />
       <div className="controls-hint">
-        WASD / Right-Drag to pan • Scroll to zoom • Left-Click / Drag to use tool
+        WASD / Right-Drag to pan • Scroll to zoom • Drag box to paint zones • Click/Drag for roads
       </div>
       <BottomToolbar toolManager={engine.toolManager} />
     </div>

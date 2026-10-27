@@ -3,10 +3,12 @@ import { type Grid, TileType } from '../core/Grid';
 import { RoadSystem } from '../core/RoadSystem';
 import { DEFAULT_TILE_SIZE } from '../core/Coordinates';
 import { RoadRenderer } from './RoadRenderer';
+import { ZoneRenderer } from './ZoneRenderer';
 
 export class GridRenderer {
   public readonly container: Container;
   public readonly roadRenderer: RoadRenderer;
+  public readonly zoneRenderer: ZoneRenderer;
   private terrainGraphics: Graphics;
   private gridLinesGraphics: Graphics;
   private highlightGraphics: Graphics;
@@ -17,11 +19,13 @@ export class GridRenderer {
     this.container = new Container();
 
     this.terrainGraphics = new Graphics();
+    this.zoneRenderer = new ZoneRenderer(this.tileSize);
     this.roadRenderer = new RoadRenderer(this.tileSize);
     this.gridLinesGraphics = new Graphics();
     this.highlightGraphics = new Graphics();
 
     this.container.addChild(this.terrainGraphics);
+    this.container.addChild(this.zoneRenderer.container);
     this.container.addChild(this.roadRenderer.container);
     this.container.addChild(this.gridLinesGraphics);
     this.container.addChild(this.highlightGraphics);
@@ -30,6 +34,7 @@ export class GridRenderer {
   public render(grid: Grid, roadSystem?: RoadSystem): void {
     const rs = roadSystem ?? new RoadSystem(grid);
     this.renderTerrain(grid);
+    this.zoneRenderer.render(grid);
     this.roadRenderer.render(grid, rs);
     this.renderGridLines(grid);
   }
@@ -126,6 +131,7 @@ export class GridRenderer {
   }
 
   public destroy(): void {
+    this.zoneRenderer.destroy();
     this.roadRenderer.destroy();
     this.container.destroy({ children: true });
   }
